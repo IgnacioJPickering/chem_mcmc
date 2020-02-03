@@ -1,4 +1,4 @@
-"""Different potential energy functions"""
+r"""Different potential energy functions"""
 import numpy as np
 class LennardJones:
     def __init__(self,parameter1, parameter2, parametrization='epsilon_sigma', center=0.0, delta=1e-10):

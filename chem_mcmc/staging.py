@@ -1,9 +1,32 @@
+r"""General staging utilities, Bounds, Particle, ParticleGroup, etc."""
 import numpy as np
 import matplotlib.pyplot as plt
 import potentials
 import constants
 
 class Bounds:
+    r"""Bounding box for a ParticleGroup
+    
+    This class is a bounding box that bounds all particles inside a particle 
+    group
+    
+    Parameters
+    ----------
+    lower : list(float)
+        List of lower bounds
+    upper : list(float)
+        List of upper bounds
+    kind : str or None
+        ``r`` for reflecting, ``p`` for periodic
+        or ``None`` for no bounds
+    
+    Raises
+    ------
+    ValueError:
+        If upper and lower bounds don't have the same dimension
+        or upper bounds are not larger than lower bounds.
+    """
+    
     def __init__(self, kind=None, lower=[0.0], upper=[0.0]):
         # upper and lower should be a list [min, ...] [max, ...] etc, for all
         # coordinates bounds kind is by default to repeat the MCMC move if it
@@ -21,12 +44,33 @@ class Bounds:
                 raise ValueError('Upper bounds should be larger than lower bounds')
 
     def are_in_bounds(self, coordinates):
+        r"""Check if a set of coordinates of a particle are inside bounds
+        
+        Parameters
+        ----------
+        coordinates : np.ndarray
+            set of particle coordinates
+        
+        Returns
+        -------
+        bool:
+            whether the coordinates are all inside bounds
+        """
+        
         too_low = np.any(coordinates < self.lower)
         too_high = np.any(coordinates > self.upper)
         return not(too_low or too_high)
 
     def wrap_coordinates(self, coordinates):
-        """Takes in coordinates and wraps them to fit inside the bounds"""
+        r"""Wraps a set of coordinates inside bounds
+        
+        Modifies the object in place
+        
+        Parameters
+        ----------
+        coordinates : np.ndarray
+            set of particle coordinates
+        """
         too_low_idx = (coordinates < self.lower).nonzero()
         too_high_idx = (coordinates > self.upper).nonzero()
         coordinates[too_low_idx] += self.sizes[too_low_idx]

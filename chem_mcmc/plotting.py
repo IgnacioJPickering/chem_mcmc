@@ -1,4 +1,4 @@
-"""Plotting utilities"""
+r"""Plotting utilities"""
 
 def plot_minimization(minimization_position, lower, upper):
   fig, ax = plt.subplots(1,1,figsize=(8,8))

@@ -1,4 +1,4 @@
-""" Constants and conversion factors"""
+r"""Constants and conversion factors"""
 
 
 # Conversion between joulse and kcal/mol
