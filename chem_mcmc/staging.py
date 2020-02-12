@@ -242,6 +242,7 @@ class Propagator:
 
         self.particle_group = particle_group
         self.prng = np.random.RandomState(seed=seed)
+        self.acceptance_rate = 0
 
     def clear_properties(self, properties=None):
         if properties is not None:
@@ -288,6 +289,7 @@ class Propagator:
                 self.particle_group.bounds.wrap_coordinates(p.coordinates)
 
     def propagate_mcmc_nvt(self, steps, temperature=298, max_delta=0.5):
+        self.acceptance_rate = 0.
         for _ in range(steps):
             if 'forces' in self.termo_properties or 'pressure' in self.termo_properties:
                 self.particle_group.calculate_forces()
@@ -303,6 +305,7 @@ class Propagator:
                 self.accept_mcmc_move()
             else:
                 self.reject_mcmc_move()
+        self.acceptance_rate /= steps
 
     def mcmc_translation_one(self, max_delta=0.5):
         r"""Performs an MCMC translation move on all the coordinates of one particle
@@ -324,6 +327,7 @@ class Propagator:
         return self.particle_group.bounds.are_in_bounds(particle.trial_coordinates)
 
     def accept_mcmc_move(self):
+        self.acceptance_rate +=1
         for p in self.particle_group:
             p.coordinates = np.copy(p.trial_coordinates)
 
@@ -348,4 +352,7 @@ class Propagator:
 
     def get_forces(self):
         return np.asarray(self.forces)
+
+    def get_acceptance_percentage(self):
+        return self.acceptance_rate*100
 

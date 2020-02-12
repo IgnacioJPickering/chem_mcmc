@@ -6,22 +6,21 @@ import constants
 import staging
 import utils
 import plotting
-
 ##### EXAMPLE 1 ######
 lower = 0.0
 upper = 10.0
-particle_group = ParticleGroup.random_square(number=1,
-                                  lower=0.0, upper=10.0, dimension=1, kind='r')
-potential = Cuadratic(1, r0=5)
+particle_group = staging.ParticleGroup.random_square(number=1,
+                                  lower=lower, upper=upper, dimension=1, kind='r')
+potential = potentials.Cuadratic(1, r0=5)
 particle_group.attach_external_potential(potential)
-propagator = Propagator(particle_group,
+propagator = staging.Propagator(particle_group,
                         termo_properties=[
            'total_energy', 'trajectory'])
 steps_min = 100
 propagator.minimize(steps_min, alpha=.1)
 minimization_position = propagator.get_trajectory()[:,0,0]
 propagator.clear_properties()
-plot_minimization(minimization_position, lower, upper)
+plotting.plot_minimization(minimization_position, lower, upper)
 temperature = 200 #K
 steps_mcmc = 2000
 max_delta = 1.0
@@ -30,28 +29,28 @@ propagator.propagate_mcmc_nvt(steps=steps_mcmc,
 position = propagator.get_trajectory()[:,0,0]
 tot_traj = propagator.get_total_energy()
 mean_tot = tot_traj.mean()
-plot_energy(tot_traj, mean_tot)
-pdensity = PDensity(temperature, potential, lower, upper)
-plot_analysis(position, pdensity, lower, upper, 
+plotting.plot_energy(tot_traj, mean_tot)
+pdensity = utils.PDensity(temperature, potential, lower, upper)
+plotting.plot_analysis(position, pdensity, lower, upper, potential, 
               title='Analysis of a cuadratic potential')
 
 ##### EXAMPLE 2 ######
 lower = 0.0
 upper = 10.0
-particle_group = ParticleGroup.random_square(number=1,
-                                  lower=0.0, upper=10.0, dimension=1, kind='r')
+particle_group = staging.ParticleGroup.random_square(number=1,
+                                  lower=lower, upper=upper, dimension=1, kind='r')
 epsilon = 0.2375 #kcal/mol
 sigma = 3.4 #angs
-potential = LennardJones(parameter1=epsilon, parameter2=sigma)
+potential = potentials.LennardJones(parameter1=epsilon, parameter2=sigma)
 particle_group.attach_external_potential(potential)
-propagator = Propagator(particle_group,
+propagator = staging.Propagator(particle_group,
                         termo_properties=[
           'total_energy', 'trajectory'])
 steps_min = 100
 propagator.minimize(steps_min, alpha=.1)
 minimization_position = propagator.get_trajectory()[:,0,0]
 propagator.clear_properties()
-plot_minimization(minimization_position, lower, upper)
+plotting.plot_minimization(minimization_position, lower, upper)
 temperature = 200 #K
 steps_mcmc = 2000
 max_delta = 1.0
@@ -60,21 +59,20 @@ propagator.propagate_mcmc_nvt(steps=steps_mcmc,
 position = propagator.get_trajectory()[:,0,0]
 tot_traj = propagator.get_total_energy()
 mean_tot = tot_traj.mean()
-plot_energy(tot_traj, mean_tot)
-pdensity = PDensity(temperature, potential, lower, upper)
-plot_analysis(position, pdensity, lower, upper, 
+plotting.plot_energy(tot_traj, mean_tot)
+pdensity = utils.PDensity(temperature, potential, lower, upper)
+plotting.plot_analysis(position, pdensity, lower, upper, potential, 
               title='Analysis of a LJ potential')
-
 ##### EXAMPLE 3 ######
 lower = 0.0
 upper = 10.0
-particle_group = ParticleGroup.random_square(number=1,
-                                  lower=0.0, upper=10.0, dimension=1, kind='r')
+particle_group = staging.ParticleGroup.random_square(number=1,
+                                  lower=lower, upper=upper, dimension=1, kind='r')
 epsilon = 0.2375 #kcal/mol
 sigma = 3.4*0.33 #angstroems
-potential = LennardJones(parameter1=epsilon, parameter2=sigma)
+potential = potentials.LennardJones(parameter1=epsilon, parameter2=sigma)
 particle_group.attach_external_potential(potential)
-propagator = Propagator(particle_group, 
+propagator = staging.Propagator(particle_group, 
                         termo_properties=['total_energy', 'trajectory'])
 steps_mcmc = 20000
 max_delta = 1.0
@@ -88,42 +86,28 @@ for j, temperature in enumerate(temperatures):
   propagator.propagate_mcmc_nvt(steps=steps_mcmc,
                                 temperature=temperature, max_delta=max_delta)
   position = propagator.get_trajectory()[:,0,0]
-  pdensity = PDensity(temperature, potential, lower, upper)
+  pdensity = utils.PDensity(temperature, potential, lower, upper)
   if j % 8 == 0:
-    plot_analysis(position, pdensity, lower, 
-                  upper, title=f'Temperature = {temperature} K')
+    plotting.plot_analysis(position, pdensity, lower, upper, potential, 
+                  title=f'Temperature = {temperature} K')
   position_means.append(position.mean())
   position_stds.append(position.std())
   position_means_teo.append(pdensity.get_mean_distance())
   position_stds_teo.append(pdensity.get_std_distance())
   acceptances.append(propagator.get_acceptance_percentage())
   propagator.clear_properties()
-fig, ax = plt.subplots(1,3, figsize=(27,9))
-ax[0].scatter(temperatures, position_means,
-              label='Mean x, hist',color='r', s=5.0)
-ax[0].plot(temperatures, position_means_teo,
-           label='Mean x, teo', color='r', linewidth=1.0)
-ax[0].set_xlabel('Temperature (K)')
-ax[0].set_ylabel(r'Mean Position ($\AA$)')
-ax[1].scatter(temperatures, position_stds,
-              label='Std. x, hist', color='orange', s=5.0)
-ax[1].plot(temperatures, position_stds_teo,
-           label='Std. x, teo', color='orange', linewidth=1.0)
-ax[1].set_xlabel('Temperature (K)')
-ax[1].set_ylabel(r'Standard dev. Position ($\AA$)')
-ax[2].scatter(temperatures, acceptances,color='green', s=5.0)
-ax[2].set_xlabel('Temperature (K)')
-ax[2].set_ylabel(r'Acceptance percentage (%)')
-ax[0].legend(loc='lower right')
-ax[1].legend(loc='lower right')
+
+titles = (r'Mean $x$ ($\AA$)', r'Std. dev. $x$ ($\AA$)', r'Acc. percentage (%)', r'Temperature (K)')
+plotting.plot_means_stds_accs(temperatures, position_means, position_means_teo, 
+        position_stds, position_stds_teo, acceptances, titles)
 plt.show()
 
 ##### EXAMPLE 4 ######
 lower = 0.0
 upper = 10.0
-particle_group = ParticleGroup.random_square(number=1,
-                                  lower=0.0, upper=10.0, dimension=1, kind='r')
-propagator = Propagator(particle_group, 
+particle_group = staging.ParticleGroup.random_square(number=1,
+                                  lower=lower, upper=upper, dimension=1, kind='r')
+propagator = staging.Propagator(particle_group, 
                         termo_properties=['total_energy', 'trajectory'])
 steps_mcmc = 20000
 epsilon = 0.2375 #kcal/mol
@@ -137,15 +121,15 @@ acceptances = []
 temperature = 80 #K
 
 for j, sigma in enumerate(sigmas):
-  potential = LennardJones(parameter1=epsilon, parameter2=sigma)
+  potential = potentials.LennardJones(parameter1=epsilon, parameter2=sigma)
   particle_group.attach_external_potential(potential)
   propagator.propagate_mcmc_nvt(steps=steps_mcmc,
                                 temperature=temperature, max_delta=max_delta)
   position = propagator.get_trajectory()[:,0,0]
-  pdensity = PDensity(temperature, potential, lower, upper)
+  pdensity = utils.PDensity(temperature, potential, lower, upper)
   if j % 4 == 0:
-    plot_analysis(position, pdensity, lower, 
-                  upper, 'Sigma = 'f'{sigma:.4f}'r' $\AA$')
+    plotting.plot_analysis(position, pdensity, lower,upper,  potential, 
+                  'Sigma = 'f'{sigma:.4f}'r' $\AA$')
   position_means.append(position.mean())
   position_stds.append(position.std())
   position_means_teo.append(pdensity.get_mean_distance())
@@ -153,25 +137,62 @@ for j, sigma in enumerate(sigmas):
   acceptances.append(propagator.get_acceptance_percentage())
   propagator.clear_properties()
 
-# plotting code
-fig, ax = plt.subplots(1,3, figsize=(27,9))
-ax[0].scatter(sigmas, position_means,
-              label='Mean x, hist',color='r', s=5.0)
-ax[0].plot(sigmas, position_means_teo,
-           label='Mean x, teo', color='r', linewidth=1.0)
-ax[0].set_xlabel(r'Sigma ($\AA$)')
-ax[0].set_ylabel(r'Mean Position ($\AA$)')
-ax[1].scatter(sigmas, position_stds,
-              label='Std. x, hist', color='orange', s=5.0)
-ax[1].plot(sigmas, position_stds_teo,
-           label='Std. x, teo', color='orange', linewidth=1.0)
-ax[1].set_xlabel(r'Sigma ($\AA$)')
-ax[1].set_ylabel(r'Standard dev. Position ($\AA$)')
-ax[2].scatter(sigmas, acceptances,color='green', s=5.0)
-ax[2].set_xlabel(r'Sigma ($\AA$)')
-ax[2].set_ylabel(r'Acceptance percentage (%)')
-ax[0].legend(loc='lower right')
-ax[1].legend(loc='lower right')
+titles = (r'Mean $x$ ($\AA$)', r'Std. dev. $x$ ($\AA$)', r'Acc. percentage (%)', r'Sigma ($\AA$)')
+plotting.plot_means_stds_accs(sigmas, position_means, position_means_teo, 
+        position_stds, position_stds_teo, acceptances, titles)
 plt.show()
+
+# plotting code
+
+#EXAMPLE 5 #####
+lower = 0.0
+upper = 10.0
+particle_group = staging.ParticleGroup.random_square(number=1,
+                                  lower=lower, upper=upper, dimension=1, kind='r')
+propagator = staging.Propagator(particle_group, 
+                        termo_properties=['total_energy', 'trajectory'])
+steps_mcmc = 20000
+epsilon = 0.2375 #kcal/mol
+sigma = 3.4
+potential = potentials.LennardJones(parameter1=epsilon, parameter2=sigma)
+particle_group.attach_external_potential(potential)
+max_delta = 1.0
+position_means = []
+position_means_teo = []
+position_stds = []
+position_stds_teo = []
+acceptances = []
+temperature = 80 #K
+
+steps = np.linspace(1, 100, 10).tolist() + np.linspace(100,10000,10).tolist()
+for j, s in enumerate(steps):
+  s = int(s)
+  propagator.propagate_mcmc_nvt(steps=s,
+                                temperature=temperature, max_delta=max_delta)
+  position = propagator.get_trajectory()[:,0,0]
+  pdensity = utils.PDensity(temperature, potential, lower, upper)
+  if j % 4 == 0:
+    plotting.plot_analysis(position, pdensity, lower, upper, potential,  f'Total Steps = {s}')
+  position_means.append(position.mean())
+  position_stds.append(position.std())
+  position_means_teo.append(pdensity.get_mean_distance())
+  position_stds_teo.append(pdensity.get_std_distance())
+  acceptances.append(propagator.get_acceptance_percentage())
+  propagator.clear_properties()
+# plotting code
+fig, ax = plt.subplots(1,2, figsize=(18,9))
+ax[0].scatter(steps, position_means,
+              label='Mean x, hist',color='r', s=5.0)
+ax[0].plot(steps, position_means_teo,
+           label='Mean x, teo', color='r', linewidth=1.0)
+ax[0].set_xlabel(r'Total MCMC steps')
+ax[0].set_ylabel(r'Mean Position ($\AA$)')
+ax[1].scatter(steps, np.abs(
+    np.asarray(position_means_teo) - np.asarray(position_means)), 
+    color='red', s=5.0)
+ax[1].set_xlabel(r'Total MCMC steps')
+ax[1].set_ylabel(r'Absolute difference with theory ($\AA$)')
+plt.show()
+# plotting code
 
 

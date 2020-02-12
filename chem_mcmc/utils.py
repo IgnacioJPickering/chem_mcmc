@@ -1,5 +1,7 @@
 """Utility for plotting the probability density"""
 import scipy.integrate as integrate
+import numpy as np
+import constants
 
 class PDensity:
     def __init__(self, temperature, potential,
@@ -7,7 +9,7 @@ class PDensity:
         self.lower = lower
         self.upper = upper
         self.potential = potential
-        self.beta = 1/(kb*temperature)
+        self.beta = 1/(constants.kb*temperature)
         if normalization is None:
             zeta, error = integrate.quad(lambda r: np.exp(
                 -self.beta*potential(r)), lower, upper)
