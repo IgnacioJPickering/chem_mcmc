@@ -1,6 +1,6 @@
 # package for MCMC quantum chemistry calculations
-import constants
-import staging
-import plotting
-import potentials
-import utils
+from . import constants
+from . import staging
+from . import plotting
+from . import potentials
+from . import utils

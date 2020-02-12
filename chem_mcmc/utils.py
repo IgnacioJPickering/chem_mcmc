@@ -1,7 +1,7 @@
 """Utility for plotting the probability density"""
 import scipy.integrate as integrate
 import numpy as np
-import constants
+import chem_mcmc.constants
 
 class PDensity:
     def __init__(self, temperature, potential,

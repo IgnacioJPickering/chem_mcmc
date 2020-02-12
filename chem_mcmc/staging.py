@@ -1,8 +1,8 @@
 r"""General staging utilities, Bounds, Particle, ParticleGroup, etc."""
 import numpy as np
 import matplotlib.pyplot as plt
-import potentials
-import constants
+import chem_mcmc.potentials
+import chem_mcmc.constants
 
 class Bounds:
     r"""Bounding box for a ParticleGroup
