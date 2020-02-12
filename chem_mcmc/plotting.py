@@ -51,7 +51,7 @@ def plot_energy(tot_traj, mean_tot, heat_capacity=None):
   ax.set_xlim(xlo, xhi)
   plt.show()
 
-def plot_analysis(position, pdensity, lower, upper, potential, title=None):
+def plot_analysis(position, pdensity, lower, upper, potential, title=None, bounds_potential=None):
   fig, ax = plt.subplots(1,4, sharex=True,figsize=(18,6))
   dummy = np.linspace(lower, upper, 200)
   ax[0].scatter(position,range(len(position)), s=1.5)
@@ -71,7 +71,10 @@ def plot_analysis(position, pdensity, lower, upper, potential, title=None):
   ax[3].set_ylabel(r'Potential ($kcal/mol$)')
   ax[3].set_xlabel(r'Position ($\AA$)')
   ax[2].set_xlim(lower, upper)
-  ax[3].set_ylim(min(potential(dummy)), min(1.2, max(potential(position))))
+  if bounds_potential is None:
+    ax[3].set_ylim(min(potential(dummy)), min(1.2, max(potential(position))))
+  else:
+    ax[3].set_ylim(bounds_potential[0], bounds_potential[1])
   if title is not None:
     fig.suptitle(title)
   plt.show()

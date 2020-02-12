@@ -1,8 +1,9 @@
 r"""General staging utilities, Bounds, Particle, ParticleGroup, etc."""
 import numpy as np
+import time
 import matplotlib.pyplot as plt
-import chem_mcmc.potentials
-import chem_mcmc.constants
+from chem_mcmc import potentials
+from chem_mcmc import constants
 
 class Bounds:
     r"""Bounding box for a ParticleGroup
@@ -227,44 +228,27 @@ class Particle:
 class Propagator:
     def __init__(self, particle_group, seed=None, termo_properties=['trajectory']):
         self.termo_properties = termo_properties
-        if 'trajectory' in self.termo_properties:
-            self.trajectory = []
-        if 'potential_energy' in self.termo_properties:
-            self.potential_energy = []
-        if 'kinetic_energy' in self.termo_properties:
-            self.kinetic_energy = []
-        if 'total_energy' in self.termo_properties:
-            self.total_energy = []
-        if 'forces' in self.termo_properties:
-            self.forces = []
-        if 'pressure' in self.termo_properties:
-            self.pressure = []
+        # thermo properties should be one of:
+        # trajectory, kinetic_energy, total_energy, forces, pressure, potential_energy, 
+        for p in termo_properties:
+            setattr(self, p, [])
 
         self.particle_group = particle_group
         self.prng = np.random.RandomState(seed=seed)
-        self.acceptance_rate = 0
+        self.acceptance_rate = None
+        self.last_run_time = None
 
     def clear_properties(self, properties=None):
-        if properties is not None:
-            if 'trajectory' in properties:
-                self.trajectory = []
-            if 'potential_energy' in properties:
-                self.potential_energy = []
-            if 'kinetic_energy' in properties:
-                self.kinetic_energy = []
-            if 'total_energy' in properties:
-                self.total_energy = []
-            if 'forces' in properties:
-                self.forces = []
-            if 'pressure' in properties:
-                self.pressure = []
-        else:
-                self.trajectory = []
-                self.potential_energy = []
-                self.kinetic_energy = []
-                self.total_energy = []
-                self.forces = []
-                self.pressure = []
+        if properties is None: 
+            properties = self.termo_properties
+        for p in properties:
+            setattr(self, p, []) 
+
+    def burn_in(self,steps=0, properties=None):
+        if properties is None: 
+            properties = self.termo_properties
+        for p in properties:
+            setattr(self, p, getattr(self,p)[steps:]) 
 
     def store_termo(self, temperature=0.0):
         if 'trajectory' in self.termo_properties:
@@ -290,6 +274,7 @@ class Propagator:
 
     def propagate_mcmc_nvt(self, steps, temperature=298, max_delta=0.5):
         self.acceptance_rate = 0.
+        start = time.time()
         for _ in range(steps):
             if 'forces' in self.termo_properties or 'pressure' in self.termo_properties:
                 self.particle_group.calculate_forces()
@@ -305,6 +290,8 @@ class Propagator:
                 self.accept_mcmc_move()
             else:
                 self.reject_mcmc_move()
+        end = time.time()
+        self.last_run_time = end - start
         self.acceptance_rate /= steps
 
     def mcmc_translation_one(self, max_delta=0.5):
