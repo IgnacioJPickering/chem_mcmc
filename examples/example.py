@@ -32,26 +32,34 @@ properties = [get_running_mean(position), get_running_std(position), get_running
 titles = [r'Mean position ($\AA$)',  r'Std. position ($\AA$)', r'Mean potential energy (kcal/mol)', r'Std. potential energy (kcal/mol)']
 titlex = r'MCMC steps'
 
-def plot_4run_properties(properties, titles, titlex, pdensity, axes=None, label_values=None):
+def plot_4run_properties(properties, titles, titlex, pdensity, axes=None, label_values=None, sharey=False, fit_params=False, fit_func=None):
     colors = ['r', 'g', 'orange', 'b']
+    steps = range(len(properties[0]))
     if label_values is None:
         default_values = [pdensity.get_mean_distance(), pdensity.get_std_distance(), pdensity.get_mean_pot_energy(), pdensity.get_std_pot_energy()]
-        default_labels = ['Theo.mean', 'Theo. std', 'Theo. mean', 'Theo. std']
+        default_labels = [f'Theo.mean {default_values[0]:.2e}', f'Theo. std {default_values[1]:.2e}', f'Theo. mean {default_values[2]:.2e}', f'Theo. std {default_values[3]:.2e}']
         label_values = True
     if axes is None:
-        fig, ax = plt.subplots(1,4, figsize=(18, 6))
+        fig, ax = plt.subplots(1,4, figsize=(18, 6), sharey=sharey)
     else:
         ax = axes
     for j, a in enumerate(ax):
-        a.plot(properties[j], color=colors[j])
+        a.plot(steps, properties[j], color=colors[j])
         a.set_ylabel(titles[j])
         a.set_xlabel(titlex)
     xlims = np.asarray([a.get_xlim() for a in ax])
+    if fit_params:
+        ylims = ax[0].get_ylim()
+        for j, a in enumerate(ax):
+            a.plot(steps, fit_func(steps, *fit_params[j]), color=colors[j], linestyle='dashed', linewidth=1.0, label=f'D = {fit_params[j][0]:.2e}')
+        ax[0].set_ylim(ylims[0], ylims[1])
     if axes is None and label_values:
         for j, a in enumerate(ax):
             a.hlines(default_values[j], xmin=xlims[j, 0], xmax =xlims[j, 1], linestyles='dashed', linewidths=1.0, label = default_labels[j])
     return ax
-plot_4run_properties(properties, titles, titlex, pdensity)
+axes = plot_4run_properties(properties, titles, titlex, pdensity)
+for a in axes:
+    a.legend()
 plt.show()
 
 
@@ -89,6 +97,15 @@ ergstd_position = np.asarray(runstd_positions).std(axis=0)
 ergmean_energy = np.asarray(runmean_energies).std(axis=0)
 ergstd_energy = np.asarray(runstd_energies).std(axis=0)
 properties = [ergmean_position, ergstd_position, ergmean_energy, ergstd_energy]
-erg_titles = ['Erg. measure of ' + t for t in titles]
-plot_4run_properties(properties, erg_titles, titlex, pdensity, label_values=False)
+# standarize the ergodic measure
+from scipy.optimize import curve_fit
+def erg_fitting(x, D):
+    eps = 1e-10
+    return 1/(x*D+eps)
+properties = [p/p[0] for p in properties]
+params = [curve_fit(erg_fitting, p, range(len(p)))[0] for p in properties]
+erg_titles = ['Erg. measure of ' + t.split('(')[0] for t in titles]
+axes = plot_4run_properties(properties, erg_titles, titlex, pdensity, label_values=False, sharey=True, fit_params = params, fit_func=erg_fitting)
+for a in axes:
+    a.legend()
 plt.show()
