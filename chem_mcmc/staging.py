@@ -315,6 +315,8 @@ class Propagator:
         number : int or None
             The number of coordinates to update (all by default if it is None).
         """
+        # generating the random numbers through numpy is pretty costly, it should be
+        # optimized
         particle = self.particle_group[self.prng.randint(0, len(self.particle_group))]
         particle.trial_coordinates = particle.coordinates + self.prng.uniform(low=-max_delta, high=max_delta, size=particle.coordinates.size)
         if self.particle_group.bounds.kind == 'p':
