@@ -1,5 +1,6 @@
 r"""Different potential energy functions"""
 import numpy as np
+from chem_mcmc.cpp import potentials_cpp
 
 
 class Potential:
@@ -77,11 +78,31 @@ class Gaussian(Potential):
         self.center = center
         self.sigma = sigma
         self.height = -height
-    
+
     def __call__(self, r):
         constant =  -1/(2*self.sigma**2)
         exponent = constant*(r-self.center)**2
         return self.height*(1/np.sqrt(2*np.pi*self.sigma**2))*np.exp(exponent) 
+
+    def dv(self, r):
+        constant =  -1/(2*self.sigma**2)
+        exponent = constant*(r-self.center)**2
+        return self.height*constant*(1/np.sqrt(2*np.pi*self.sigma**2))*np.exp(exponent)*2*(r-self.center)
+
+class GaussianOpt(Potential):
+    def __init__(self, sigma, height=1.0, center=0.0, parametrization='center_sigma_height'):
+        super().__init__()
+        self.parametrization = parametrization
+        # use a negative parameter for height if you want a repulsive potential
+        self.center = center
+        self.sigma = sigma
+        self.height = -height
+    #I'm testing a Cpp optimization of this potential for 1 particle 
+    def __call__(self, r):
+        return potentials_cpp.gaussian(r, self.sigma, self.center, self.height)
+
+    def __call__(self, r):
+        return potentials_cpp.gaussian(r, self.sigma, self.center, self.height)
 
     def dv(self, r):
         constant =  -1/(2*self.sigma**2)
@@ -97,6 +118,16 @@ class LogGaussian(Potential):
     def __call__(self,r):
       out = sum([g(r) for g in self.gaussians])
       return -np.log(out)
+
+class LogGaussianOpt(Potential):
+    def __init__(self, sigma=[0.5, 0.5], A= [1., 1.], mu=[4, 8]):
+      super().__init__()
+      self.sigmas = sigma
+      self.As = A 
+      self.mus = mu
+
+    def __call__(self,r):
+      return potentials_cpp.log_gaussian(r, self.sigmas, self.As, self.mus)
 
 
 

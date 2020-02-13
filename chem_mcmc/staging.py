@@ -1,6 +1,7 @@
 r"""General staging utilities, Bounds, Particle, ParticleGroup, etc."""
 import numpy as np
 import time
+import math
 import matplotlib.pyplot as plt
 from chem_mcmc import potentials
 from chem_mcmc import constants
@@ -154,15 +155,23 @@ class ParticleGroup:
                 for pp in self.pairwise_potential:
                     total_potential += pp(r)
         return total_potential
-
+    
     def get_external_potential(self, trial=False):
         total_external = 0.
         for p in self:
             if trial:
-                r = np.linalg.norm(p.trial_coordinates)
+                #Note: this is faster than numpy because coordinates is very small
+                # and this part of the code is very costly
+                # but numpy would be faster if I did everything at the same
+                # time, which I SHOULD DO, for larger systems, check in the 
+                # future
+                r = math.sqrt(sum([c**2 for c in p.trial_coordinates]))
+                #r = np.linalg.norm(p.trial_coordinates)
             else:
-                r = np.linalg.norm(p.coordinates)
+                r = math.sqrt(sum([c**2 for c in p.coordinates]))
+                #r = np.linalg.norm(p.coordinates)
             for ep in self.external_potential:
+                # this takes 70% of the time if I use stl for the normalization
                 total_external += ep(r)
         return total_external
 
