@@ -1,6 +1,10 @@
 r"""Different potential energy functions"""
 import numpy as np
-from chem_mcmc.cpp import potentials_cpp
+try:
+    from chem_mcmc.cpp import potentials_cpp
+    CPP_ON = True
+except ImportError:
+    CPP_ON = False
 
 
 class Potential:
@@ -97,6 +101,8 @@ class GaussianOpt(Potential):
         self.center = center
         self.sigma = sigma
         self.height = -height
+        if not CPP_ON:
+            raise ImportError('potential cant be used since CPP is not available')
     #I'm testing a Cpp optimization of this potential for 1 particle 
     def __call__(self, r):
         return potentials_cpp.gaussian(r, self.sigma, self.center, self.height)
@@ -125,6 +131,8 @@ class LogGaussianOpt(Potential):
       self.sigmas = sigma
       self.As = A 
       self.mus = mu
+      if not CPP_ON:
+          raise ImportError('potential cant be used since CPP is not available')
 
     def __call__(self,r):
       return potentials_cpp.log_gaussian(r, self.sigmas, self.As, self.mus)
