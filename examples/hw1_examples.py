@@ -1,11 +1,11 @@
 r"""MCMC examples"""
 import numpy as np
 import matplotlib.pyplot as plt
-import potentials
-import constants
-import staging
-import utils
-import plotting
+from chem_mcmc import potentials
+from chem_mcmc import constants
+from chem_mcmc import staging
+from chem_mcmc import utils
+from chem_mcmc import plotting
 ##### EXAMPLE 1 ######
 lower = 0.0
 upper = 10.0
