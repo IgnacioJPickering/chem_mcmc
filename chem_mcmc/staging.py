@@ -273,11 +273,15 @@ class Propagator:
         if 'pressure' in self.termo_properties:
             self.pressure.append(self.particle_group.get_pressure(temperature=temperature))
 
-    def minimize(self, steps, alpha=0.1):
+    def minimize(self, steps, alpha=0.1, max_step=0.5):
         for _ in range(steps):
             self.particle_group.calculate_forces()
             self.store_termo()
             for p in self.particle_group:
+                step = alpha*p.get_force()
+                # If the step is too large then reduce it to the max step
+                if np.norm(step) > max_step:
+                    step = step*max_step/np.norm(step)
                 p.coordinates =  p.coordinates + alpha*p.get_force()
                 self.particle_group.bounds.wrap_coordinates(p.coordinates)
 
@@ -332,6 +336,23 @@ class Propagator:
     def reject_mcmc_move(self):
         for p in self.particle_group:
             p.trial_coordinates = np.copy(p.coordinates)
+
+    def dump_to_xyz(self, xyz_path):
+        with open(xyz_path, 'w') as f:
+            trajectory = np.asarray(self.trajectory)
+            num_atoms = trajectory.shape[1]
+            for snapshot in trajectory:
+                f.write(f'{num_atoms}\n')
+                f.write('\n')
+                for atom in snapshot:
+                    if len(atom) > 3:
+                        raise ValueError('Not possible to print xyz with dim > 3')
+                    elif len(atom) < 3:
+                        padded_atom = np.pad(atom, (0,3-len(atom)), constant_values=(0,0))
+                        coord_str = ' '.join(padded_atom.astype(str).tolist())
+                    else:
+                        coord_str = ' '.join(atom.astype(str).tolist())
+                    f.write(f'H {coord_str}\n')
 
     def get_trajectory(self):
         return np.asarray(self.trajectory)
