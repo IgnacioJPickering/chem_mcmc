@@ -13,7 +13,7 @@ temperature = 600
 lower = 0.
 upper = 12.
 # ~ 80k is converged (10 s) , ~ 800k is very well converged
-mcmc_steps = 80000
+mcmc_steps = 100000
 #potential = LogGaussian(A=[2., 0.8], mu=[4, 8])
 potential = LogGaussianOpt(A=[2., 0.8], mu=[4, 8])
 p_group = ParticleGroup.random_square(number=1, lower=lower, upper=upper, dimension=1, kind='r')
@@ -34,4 +34,5 @@ end = time.time()
 time2 = end - start
 
 # optimizing the potentials in C gives about a 24 % speedup 
+print(time1, time2)
 print(f'speedup = {(time2- time1)*100/time2} %')
