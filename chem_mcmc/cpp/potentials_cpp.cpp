@@ -5,10 +5,11 @@
 #include <cmath>
 #include <vector>
 
+
 double PI = 3.141592653589793;
 
 double gaussian(const double &r, const double &sigma, const double &center,
-                const double &height) {
+                const double &height){
   double two_var = 2 * std::pow(sigma, 2.);
   double constant = -1 / (two_var);
   double exponent = constant * std::pow(r - center, 2.);
@@ -17,7 +18,7 @@ double gaussian(const double &r, const double &sigma, const double &center,
 
 double log_gaussian(const double &r, const std::vector<double> &sigmas,
                     const std::vector<double> &A,
-                    const std::vector<double> &mu) {
+                    const std::vector<double> &mu){
   double sum_gaussians = 0.;
   for (int j = 0; j != int(sigmas.size()); j += 1) {
     double two_var = 2 * std::pow(sigmas[j], 2.);
