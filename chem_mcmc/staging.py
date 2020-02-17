@@ -152,6 +152,10 @@ class ParticleGroup:
                     r = np.linalg.norm(self[j].trial_coordinates - self[k].trial_coordinates)
                 else:
                     r = np.linalg.norm(self[j].coordinates - self[k].coordinates)
+                # wrap distances for periodic BC in pairwise potentials
+                if self.bounds.kind == 'p':
+                    idx = np.nonzero(r > self.bounds.sizes/2)[0]
+                    r[idx] = r[idx] - self.bounds.sizes[idx]
                 for pp in self.pairwise_potential:
                     total_potential += pp(r)
         return total_potential
