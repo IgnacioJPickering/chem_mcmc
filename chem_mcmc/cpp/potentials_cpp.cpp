@@ -1,4 +1,3 @@
-#include <math.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -13,7 +12,7 @@ double gaussian(const double &r, const double &sigma, const double &center,
   double two_var = 2 * std::pow(sigma, 2.);
   double constant = -1 / (two_var);
   double exponent = constant * std::pow(r - center, 2.);
-  return -height * ((1 / sqrt(PI * two_var)) * exp(exponent));
+  return -height * ((1 / std::sqrt(PI * two_var)) * std::exp(exponent));
 };
 
 double log_gaussian(const double &r, const std::vector<double> &sigmas,
@@ -24,10 +23,9 @@ double log_gaussian(const double &r, const std::vector<double> &sigmas,
     double two_var = 2 * std::pow(sigmas[j], 2.);
     double constant = -1 / (two_var);
     double exponent = constant * std::pow(r - mu[j], 2.);
-    double height = A[j];
-    sum_gaussians += height * exp(exponent);
+    sum_gaussians += A[j] * std::exp(exponent);
   }
-  return -log(sum_gaussians);
+  return -std::log(sum_gaussians);
 }
 
 // This is binding code for pybind11, usually binding code and
