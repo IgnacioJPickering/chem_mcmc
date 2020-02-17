@@ -280,8 +280,9 @@ class Propagator:
             for p in self.particle_group:
                 step = alpha*p.get_force()
                 # If the step is too large then reduce it to the max step
-                if np.norm(step) > max_step:
-                    step = step*max_step/np.norm(step)
+                step_size = np.linalg.norm(step)
+                if step_size > max_step:
+                    step = step*max_step/step_size
                 p.coordinates =  p.coordinates + alpha*p.get_force()
                 self.particle_group.bounds.wrap_coordinates(p.coordinates)
 

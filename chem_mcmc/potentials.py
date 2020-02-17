@@ -74,6 +74,50 @@ class Coulomb(Potential):
     def dv(self, r):
         return  -(1/self.epsilon)*self.q1*self.q2/(r - self.center + self.delta)**2
 
+class HardSpheres(Potential):
+    def __init__(self, sigma , center=0.0, extra_room=1e-6):
+        super().__init__()
+        self.extra_room=extra_room
+        self.sigma = sigma
+        #TODO move with center
+        self.center = center
+    
+    def __call__(self, r):
+        if r > self.sigma:
+            return np.full_like(r,0.)
+        return np.full_like(r,np.inf)
+
+    def dv(self, r):
+        # note: this force is fictitious, it is there to make the particles
+        # go away if they are too close when initialized, during a minimization
+        if r > (self.sigma+self.extra_room):
+            return np.full_like(r,0.)
+        return np.full_like(r,-self.sigma/2)
+
+class HardSpheresStep(Potential):
+    def __init__(self, sigma1, sigma2, epsilon, center=0.0, extra_room=1e-6):
+        super().__init__()
+        self.extra_room = extra_room
+        self.sigma1 = sigma1
+        self.sigma2 = sigma2
+        self.epsilon = epsilon
+        #TODO move with center
+        self.center = center
+    
+    def __call__(self, r):
+        if r > self.sigma2:
+            return np.full_like(r,0.)
+        if r > self.sigma1 and r <= self.sigma2:
+            return np.full_like(r,-self.epsilon)
+        return np.full_like(r,np.inf)
+
+    def dv(self, r):
+        # note: this force is fictitious, it is there to make the particles
+        # go away if they are too close when initialized,  during a minimization
+        if r > (self.sigma1+self.extra_room):
+            return np.full_like(r,0.)
+        return np.full_like(r,-self.sigma1/2)
+
 class Gaussian(Potential):
     def __init__(self, sigma, height=1.0, center=0.0, parametrization='center_sigma_height'):
         super().__init__()
