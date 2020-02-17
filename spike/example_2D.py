@@ -13,7 +13,7 @@ temperature = 600
 lower = 0.
 upper = 12.
 # ~ 80k is converged (10 s) , ~ 800k is very well converged
-mcmc_steps = 10000
+mcmc_steps = 1000
 #potential = LogGaussian(A=[2., 0.8], mu=[4, 8])
 #potential = LogGaussian(A=[2., 0.8], mu=[4, 8])
 potential = HardSpheresStep(sigma1=0.5, sigma2=1.0, epsilon=2)
@@ -26,5 +26,6 @@ propagator = Propagator(p_group, termo_properties=['potential_energy', 'trajecto
 propagator.minimize(50)
 propagator.propagate_mcmc_nvt(steps=mcmc_steps, temperature=temperature, max_delta=0.5)
 #print(propagator.get_acceptance_percentage())
-propagator.dump_to_xyz('test_pbc_2.xyz')
+propagator.dump_to_xyz('test_pbc_fast.xyz')
+
 

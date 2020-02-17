@@ -158,6 +158,13 @@ class ParticleGroup:
                     difference[idx] = difference[idx] - self.bounds.sizes[idx]
                 r = np.linalg.norm(difference)
                 for pp in self.pairwise_potential:
+                    pot_value = pp(r) 
+                    # if one of the potentials is infinite 
+                    # stop doing calculations and return infinity
+                    # directly, this should save some time
+                    # math.isinf is faster than numpy for small arrays
+                    if math.isinf(pot_value):
+                        return np.inf
                     total_potential += pp(r)
         return total_potential
     
@@ -217,10 +224,17 @@ class ParticleGroup:
 
     def get_potential(self, trial=False):
         # units of kcal/mol
+        # More chances of pairwise being None than external
         return self.get_external_potential(trial=trial) + self.get_pairwise_potential(trial=trial)
 
     def get_potential_difference(self):
-        return self.get_potential(trial=True) - self.get_potential(trial=False)
+        potential_trial = self.get_potential(trial=True)
+        # this avoids computation of the current potential if the external one
+        # is infinity so it saves some time
+        # math.isinf is faster than numpy for small arrays
+        if math.isinf(potential_trial):
+            return np.inf
+        return potential_trial - self.get_potential(trial=False)
 
     def get_kinetic(self, temperature):
         # units of kcal/mol
@@ -309,7 +323,19 @@ class Propagator:
             self.store_termo(temperature=temperature)
             beta =  1/(constants.kb*temperature)
             in_bounds = self.mcmc_translation_one(max_delta=max_delta)
+            if not in_bounds:
+                # If the particle is not in bounds the 
+                # move is rejected automatically and there is nothing
+                # else to check, this avoids some computation
+                self.reject_mcmc_move()
+                continue
             diff = self.particle_group.get_potential_difference()
+            if math.isinf(diff):
+                # If the trial particle is in a potential that is infinite
+                # then the function automatically returns and
+                # the move can be rejected without doing more computation
+                self.reject_mcmc_move()
+                continue
             mc_factor = np.exp(-beta*diff)
             # If there are particles out of bounds the move is rejected 
             # This shouldn't happen with periodic boundary conditions
