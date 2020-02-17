@@ -149,13 +149,14 @@ class ParticleGroup:
         for j in range(num_particles):
             for k in range(j+1, num_particles):
                 if trial:
-                    r = np.linalg.norm(self[j].trial_coordinates - self[k].trial_coordinates)
+                    difference = self[j].trial_coordinates - self[k].trial_coordinates
                 else:
-                    r = np.linalg.norm(self[j].coordinates - self[k].coordinates)
+                    difference = self[j].coordinates - self[k].coordinates
                 # wrap distances for periodic BC in pairwise potentials
                 if self.bounds.kind == 'p':
-                    idx = np.nonzero(r > self.bounds.sizes/2)[0]
-                    r[idx] = r[idx] - self.bounds.sizes[idx]
+                    idx = np.nonzero(difference > self.bounds.sizes/2)[0]
+                    difference[idx] = difference[idx] - self.bounds.sizes[idx]
+                r = np.linalg.norm(difference)
                 for pp in self.pairwise_potential:
                     total_potential += pp(r)
         return total_potential
@@ -187,6 +188,15 @@ class ParticleGroup:
                 if k == j:
                     continue
                 difference = self[j].coordinates - self[k].coordinates
+                # wrap distances for periodic BC in pairwise potentials
+                #TODO this still doesn't work properly on minimizations
+                #Minimizations should work on reflecting BC but right now
+                #They only work correctly in periodic, for reflecting
+                #They calculate the forces without wrapping and still wrap
+                # the particle coordinates
+                if self.bounds.kind == 'p':
+                    idx = np.nonzero(difference > self.bounds.sizes/2)[0]
+                    difference[idx] = difference[idx] - self.bounds.sizes[idx]
                 r = np.linalg.norm(difference)
                 force_magnitude = sum([pp.dv(r) for pp in self.pairwise_potential])
                 force = - force_magnitude * difference/r
