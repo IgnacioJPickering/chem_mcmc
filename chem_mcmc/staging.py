@@ -5,6 +5,12 @@ import math
 import matplotlib.pyplot as plt
 from chem_mcmc import potentials
 from chem_mcmc import constants
+try:
+    from chem_mcmc.cpp import staging_cpp
+    CPP_AVAIL = True
+except ImportError:
+    CPP_AVAIL = False
+
 
 class Bounds:
     r"""Bounding box for a ParticleGroup
@@ -78,6 +84,18 @@ class Bounds:
         coordinates[too_low_idx] += self.sizes[too_low_idx]
         coordinates[too_high_idx] -= self.sizes[too_high_idx]
 
+    def get_distance(self, coordinates1, coordinates2):
+        difference = coordinates1 - coordinates2
+        # wrap distances for periodic BC in pairwise forces 
+        # if self.bounds.kind is "p" the distance is automatically wrapped
+        if self.kind == 'p':
+            idx = np.nonzero(difference > self.sizes/2)[0]
+            difference[idx] -= self.sizes[idx]
+            idx = np.nonzero(difference < -self.sizes/2)[0]
+            difference[idx] += self.sizes[idx]
+        r = np.linalg.norm(difference)
+        return r
+
     @classmethod
     def square(cls, lower=0.0, upper=0.0, kind=None, dimension=1):
         """Makes square bounds"""
@@ -96,10 +114,13 @@ class ParticleGroup:
         self.bounds = bounds
 
     @classmethod
-    def random_square(cls, number, lower=0.0, upper=10.0, kind=None, dimension=1, seed=None):
+    def random_square(cls, number, lower=0.0, upper=10.0, kind=None, dimension=1, seed=None, use_cpp=True):
         """Creates a given number of particles in random positions inside square bounds"""
         prng = np.random.RandomState(seed=seed)
-        bounds = Bounds.square(lower=lower, upper=upper, kind=kind, dimension=dimension)
+        if CPP_AVAIL and use_cpp:
+            bounds = staging_cpp.Bounds.square(lower=lower, upper=upper, kind=kind, dimension=dimension)
+        else:
+            bounds = Bounds.square(lower=lower, upper=upper, kind=kind, dimension=dimension)
         random_coordinates = prng.uniform(low=lower, high=upper, size=(number, dimension))
         particle_list = [Particle(r) for r in random_coordinates]
         return cls(particles=particle_list, bounds=bounds)
@@ -132,7 +153,7 @@ class ParticleGroup:
         return self.get_virial_per_particle().sum()
 
     def get_volume(self):
-        return np.prod(self[0].bounds.upper - self[0].bounds.lower)
+        return np.prod(self.bounds.upper - self.bounds.lower)
 
     def get_pressure(self, temperature):
         return len(self)*constants.kb*temperature/self.get_volume() + self.get_virial()/(self[0].dimension*self.get_volume())
@@ -148,17 +169,12 @@ class ParticleGroup:
         num_particles = len(self)
         for j in range(num_particles):
             for k in range(j+1, num_particles):
+                # wrap distances for periodic BC in pairwise forces 
+                # if self.bounds.kind is "p" the distance is automatically wrapped
                 if trial:
-                    difference = self[j].trial_coordinates - self[k].trial_coordinates
+                    r = self.bounds.get_distance(self[j].trial_coordinates, self[k].trial_coordinates)
                 else:
-                    difference = self[j].coordinates - self[k].coordinates
-                # wrap distances for periodic BC in pairwise potentials
-                if self.bounds.kind == 'p':
-                    idx = np.nonzero(difference > self.bounds.sizes/2)[0]
-                    difference[idx] -= self.bounds.sizes[idx]
-                    idx = np.nonzero(difference < -self.bounds.sizes/2)[0]
-                    difference[idx] += self.bounds.sizes[idx]
-                r = np.linalg.norm(difference)
+                    r = self.bounds.get_distance(self[j].coordinates, self[k].coordinates)
                 for pp in self.pairwise_potential:
                     pot_value = pp(r) 
                     # if one of the potentials is infinite 
@@ -196,19 +212,10 @@ class ParticleGroup:
             for k in range(num_particles):
                 if k == j:
                     continue
+                # wrap distances for periodic BC in pairwise forces 
+                # if self.bounds.kind is "p" the distance is automatically wrapped
                 difference = self[j].coordinates - self[k].coordinates
-                # wrap distances for periodic BC in pairwise potentials
-                #TODO this still doesn't work properly on minimizations
-                #Minimizations should work on reflecting BC but right now
-                #They only work correctly in periodic, for reflecting
-                #They calculate the forces without wrapping and still wrap
-                # the particle coordinates
-                if self.bounds.kind == 'p':
-                    idx = np.nonzero(difference > self.bounds.sizes/2)[0]
-                    difference[idx] -= self.bounds.sizes[idx]
-                    idx = np.nonzero(difference < -self.bounds.sizes/2)[0]
-                    difference[idx] += self.bounds.sizes[idx]
-                r = np.linalg.norm(difference)
+                r = self.bounds.get_distance(self[j].coordinates, self[k].coordinates)
                 force_magnitude = sum([pp.dv(r) for pp in self.pairwise_potential])
                 force = - force_magnitude * difference/r
                 total_pairwise_force += force
