@@ -331,6 +331,8 @@ class Propagator:
                 # If the particle is not in bounds the 
                 # move is rejected automatically and there is nothing
                 # else to check, this avoids some computation
+                # This shouldn't happen with periodic boundary conditions
+                # but it sometimes happens if the conditions are reflecting
                 self.reject_mcmc_move()
                 continue
             diff = self.particle_group.get_potential_difference()
@@ -341,10 +343,7 @@ class Propagator:
                 self.reject_mcmc_move()
                 continue
             mc_factor = np.exp(-beta*diff)
-            # If there are particles out of bounds the move is rejected 
-            # This shouldn't happen with periodic boundary conditions
-            # but it sometimes happens if the conditions are reflecting
-            if self.prng.uniform(low=0., high=1.) < mc_factor and in_bounds:
+            if self.prng.uniform(low=0., high=1.) < mc_factor:
                 self.accept_mcmc_move()
             else:
                 self.reject_mcmc_move()
