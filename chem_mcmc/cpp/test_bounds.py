@@ -14,3 +14,7 @@ print(d)
 
 cpp_bounds = Bounds.square(lower=0.0, upper=10.0, dimension=4, kind="p")
 print(cpp_bounds.sizes)
+cpp_bounds.kind = "p"
+print(cpp_bounds.kind)
+cpp_bounds.kind = "n"
+print(cpp_bounds.kind)

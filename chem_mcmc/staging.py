@@ -35,10 +35,10 @@ class Bounds:
         or upper bounds are not larger than lower bounds.
     """
     
-    def __init__(self, kind=None, lower=[0.0], upper=[0.0]):
+    def __init__(self, kind='n', lower=[0.0], upper=[0.0]):
         # upper and lower should be a list [min, ...] [max, ...] etc, for all
         # coordinates bounds kind is by default to repeat the MCMC move if it
-        # falls outside the bounds bounds kind should be either 'p' or 'r'
+        # falls outside the bounds bounds kind should be either 'p' or 'r' or 'n'
         # dimension as coordinates and can be 'periodic' or 'reflecting' 
         self.kind = kind
         self.lower = np.asarray(lower)
@@ -314,7 +314,13 @@ class Propagator:
 
     def minimize(self, steps, alpha=0.1, max_step=0.5):
         for _ in range(steps):
+            # Minimizations will always be carried in periodic boundary
+            # conditions for the moment, even if the conditions are reflecting
+            # or none, they are set to periodic for the minimization
+            save_kind = self.particle_group.bounds.kind
+            self.particle_group.bounds.kind = 'p'
             self.particle_group.calculate_forces()
+            self.particle_group.bounds.kind = save_kind
             self.store_termo()
             for p in self.particle_group:
                 step = alpha*p.get_force()

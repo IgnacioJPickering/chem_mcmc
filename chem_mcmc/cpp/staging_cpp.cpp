@@ -102,7 +102,7 @@ PYBIND11_MODULE(staging_cpp, m) {
                     const std::vector<double> &>(),
            py::arg("kind") = "n", py::arg("lower") = vector<double>{0.0},
            py::arg("upper") = vector<double>{0.0})
-      .def_readonly("kind", &Bounds::kind_)
+      .def_readwrite("kind", &Bounds::kind_)
       .def_readonly("lower", &Bounds::lower_)
       .def_readonly("upper", &Bounds::upper_)
       .def_readonly("sizes", &Bounds::sizes_)
