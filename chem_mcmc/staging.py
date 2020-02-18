@@ -11,7 +11,8 @@ try:
 except ImportError:
     CPP_AVAIL = False
 
-
+#TODO external potentials and forces don't work correctly with PBC and 
+# NDimensions right now
 class Bounds:
     r"""Bounding box for a ParticleGroup
     
