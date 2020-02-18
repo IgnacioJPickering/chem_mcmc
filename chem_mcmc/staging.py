@@ -155,7 +155,9 @@ class ParticleGroup:
                 # wrap distances for periodic BC in pairwise potentials
                 if self.bounds.kind == 'p':
                     idx = np.nonzero(difference > self.bounds.sizes/2)[0]
-                    difference[idx] = difference[idx] - self.bounds.sizes[idx]
+                    difference[idx] -= self.bounds.sizes[idx]
+                    idx = np.nonzero(difference < -self.bounds.sizes/2)[0]
+                    difference[idx] += self.bounds.sizes[idx]
                 r = np.linalg.norm(difference)
                 for pp in self.pairwise_potential:
                     pot_value = pp(r) 
@@ -203,7 +205,9 @@ class ParticleGroup:
                 # the particle coordinates
                 if self.bounds.kind == 'p':
                     idx = np.nonzero(difference > self.bounds.sizes/2)[0]
-                    difference[idx] = difference[idx] - self.bounds.sizes[idx]
+                    difference[idx] -= self.bounds.sizes[idx]
+                    idx = np.nonzero(difference < -self.bounds.sizes/2)[0]
+                    difference[idx] += self.bounds.sizes[idx]
                 r = np.linalg.norm(difference)
                 force_magnitude = sum([pp.dv(r) for pp in self.pairwise_potential])
                 force = - force_magnitude * difference/r
