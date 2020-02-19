@@ -154,7 +154,7 @@ class ParticleGroup:
         return self.get_virial_per_particle().sum()
 
     def get_volume(self):
-        return np.prod(self.bounds.upper - self.bounds.lower)
+        return np.prod(np.asarray(self.bounds.upper) - np.asarray(self.bounds.lower))
 
     def get_pressure(self, temperature):
         return len(self)*constants.kb*temperature/self.get_volume() + self.get_virial()/(self[0].dimension*self.get_volume())
@@ -355,6 +355,9 @@ class Propagator:
             self.forces.append(self.particle_group.get_forces())
         if 'pressure' in self.termo_properties:
             self.pressure.append(self.particle_group.get_pressure(temperature=temperature))
+        if 'bound_sizes' in self.termo_properties:
+            # TODO: change this so that it makes sense
+            self.bound_sizes.append(self.particle_group.bounds.upper)
 
     def minimize(self, steps, alpha=0.1, max_step=0.5):
         for _ in range(steps):
@@ -374,6 +377,100 @@ class Propagator:
                     step = step*max_step/step_size
                 p.coordinates =  p.coordinates + alpha*p.get_force()
                 self.particle_group.bounds.wrap_coordinates(p.coordinates)
+
+    def mcmc_volume_scaling(self, max_delta):
+        volume = self.particle_group.get_volume()
+        trial_volume = volume + self.prng.uniform(low=-1., high=1.)*max_delta
+        scaling_factor = (trial_volume/volume)**(1/3)
+        # modify volume
+        self.particle_group.bounds.upper = np.asarray(self.particle_group.bounds.upper)*scaling_factor
+        # modify coordinates
+        # note: this can NOT send particles out of bounds, since this only
+        # scales everything by a factor.
+        for p in self.particle_group:
+            p.trial_coordinates = p.coordinates*scaling_factor
+        # TODO: there is probably a cleaner way to do this than returning the
+        # scaling factor, its probably better if the Bounds class has a
+        # upper_trial and lower_trial, etc
+        # since particles are always in bounds after this kind of move
+        # the function always returns in_bounds = True
+        return True, scaling_factor
+
+
+    def propagate_mcmc_npt(self, steps, temperature=298, pressure=1, max_delta_coord=0.5, max_delta_volume=None):
+        # Pressure should be given in atm
+        # note that this way of writing it will only work
+        # with square bounds, so I check that all sizes are equal
+        # Also, all lower bounds should be zero
+        sizes = np.asarray(self.particle_group.bounds.sizes)
+        lower = np.asarray(self.particle_group.bounds.lower)
+        if not np.all(sizes == sizes[0]):
+            raise ValueError("All sizes must be equal for NPT currently")
+        if not np.all(lower == 0.):
+            raise ValueError("All lower bounds must be equal to zero for NPT currently")
+        self.acceptance_rate = 0.
+        start = time.time()
+        if max_delta_volume is None:
+            max_delta_volume = self.particle_group.get_volume()/40.
+        for _ in range(steps):
+            # by default this is one, but it changes if a pressure move is
+            # performed
+            scaling_factor = 1
+            if 'forces' in self.termo_properties or 'pressure' in self.termo_properties:
+                self.particle_group.calculate_forces()
+            self.store_termo(temperature=temperature)
+            beta =  1/(constants.kb*temperature)
+            choice = self.prng.choice(['vol', 'trans'])
+            if choice == 'trans':
+                # the index is not needed in this case because everything is
+                # recomputed right now
+                in_bounds, _ = self.mcmc_translation_one(max_delta=max_delta_coord)
+            elif choice == 'vol':
+                in_bounds, scaling_factor = self.mcmc_volume_scaling(max_delta=max_delta_volume)
+            if not in_bounds:
+                # If the particle is not in bounds the 
+                # move is rejected automatically and there is nothing
+                # else to check, this avoids some computation
+                # This shouldn't happen with periodic boundary conditions
+                # but it sometimes happens if the conditions are reflecting
+                # each time I reject I should also reset the size of the bounds
+                # TODO: this is messy, there should be better ways to do it, 
+                # like saving some "trial bounds"
+                self.particle_group.bounds.upper = np.asarray(self.particle_group.bounds.upper)*(1/scaling_factor)
+                self.reject_mcmc_move()
+                continue
+            # in both cases (volume and moves) diff is calculated the same way
+            # I recompute everything, it is slower but right now I just 
+            # want to make sure that it works
+            # TODO: scale potential for 1/r and store old potentials, 
+            # Only check difference for 1 particle moves
+            num_particles = len(self.particle_group)
+            # mc_factor is actually different in both cases
+            # but I can homogenize it with some small redundant computations
+            term1 = self.particle_group.get_potential_difference()
+            if math.isinf(term1):
+                # If the trial particle is in a potential that is infinite
+                # then the function automatically returns and
+                # the move can be rejected without doing more computation
+                # this is true even in the NPT case
+                self.particle_group.bounds.upper = np.asarray(self.particle_group.bounds.upper)*(1/scaling_factor)
+                self.reject_mcmc_move()
+                continue
+            # if the scaling factor is 1 then terms 2 and 3 are zero
+            # TODO: This is messy, use a trial volume or something like that!
+            term2 = pressure*self.particle_group.get_volume()*(1 - 1/scaling_factor) 
+            term3 = -num_particles*math.log(scaling_factor)
+            # equation 5.4.11 in daan frenkel molecular simulations
+            exponent = -beta*(term1 + term2) + term3
+            mc_factor = np.exp(exponent)
+            if self.prng.uniform(low=0., high=1.) < mc_factor:
+                self.accept_mcmc_move()
+            else:
+                self.particle_group.bounds.upper = np.asarray(self.particle_group.bounds.upper)*(1/scaling_factor)
+                self.reject_mcmc_move()
+        end = time.time()
+        self.last_run_time = end - start
+        self.acceptance_rate /= steps
 
     def propagate_mcmc_nvt(self, steps, temperature=298, max_delta=0.5):
         self.acceptance_rate = 0.
@@ -450,8 +547,6 @@ class Propagator:
         self.last_run_time = end - start
         self.acceptance_rate /= steps
 
-
-
     def mcmc_translation_one(self, max_delta=0.5):
         r"""Performs an MCMC translation move on all the coordinates of one particle
         
@@ -499,6 +594,8 @@ class Propagator:
                     else:
                         coord_str = ' '.join(atom.astype(str).tolist())
                     f.write(f'H {coord_str}\n')
+    def get_bound_sizes(self):
+        return np.asarray(self.bound_sizes)
 
     def get_trajectory(self):
         return np.asarray(self.trajectory)

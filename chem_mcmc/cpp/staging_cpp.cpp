@@ -103,9 +103,9 @@ PYBIND11_MODULE(staging_cpp, m) {
            py::arg("kind") = "n", py::arg("lower") = vector<double>{0.0},
            py::arg("upper") = vector<double>{0.0})
       .def_readwrite("kind", &Bounds::kind_)
-      .def_readonly("lower", &Bounds::lower_)
-      .def_readonly("upper", &Bounds::upper_)
-      .def_readonly("sizes", &Bounds::sizes_)
+      .def_readwrite("lower", &Bounds::lower_)
+      .def_readwrite("upper", &Bounds::upper_)
+      .def_readwrite("sizes", &Bounds::sizes_)
       .def_readonly("dimension", &Bounds::dimension_)
       .def("are_in_bounds", &Bounds::areInBounds, py::arg("coordinates"))
       .def("get_distance", &Bounds::getDistance,
