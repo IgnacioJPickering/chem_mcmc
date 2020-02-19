@@ -186,6 +186,38 @@ class ParticleGroup:
                         return np.inf
                     total_potential += pp(r)
         return total_potential
+
+    def get_pairwise_potential_contribution(self, particle_idx, trial=False):
+        # This function calculates the contribution of ONE
+        # particle to the total potential energy.
+        # The total potential energy can be obtained by 
+        # straight calculation or by summing up the contributions 
+        # and dividing by two.
+        pairwise_contribution = 0.
+        num_particles = len(self)
+        for j in range(num_particles):
+            if j == particle_idx: continue
+        if trial:
+            r = self.bounds.get_distance(self[j].trial_coordinates, self[k].trial_coordinates)
+        else:
+            r = self.bounds.get_distance(self[j].coordinates, self[k].coordinates)
+        for pp in self.pairwise_potential:
+            pot_value = pp(r) 
+            # if one of the potentials is infinite 
+            # stop doing calculations and return infinity
+            # directly, this should save some time
+            # math.isinf is faster than numpy for small arrays
+            if math.isinf(pot_value):
+                return np.inf
+            pairwise_contribution += pp(r)
+            # Factor of 0.5 corrects for double counting when 
+            # summing the pairwise contributions of all particles, 
+            # If you want to sum all contributions to get the total energy 
+            # it MUST be present, but if you want to split the energy into 
+            # U = U_others + U_particle
+            # thin it SHOULDN't be present. This is slightly confusing but it 
+            # works out. 
+        return pairwise_contribution
     
     def get_external_potential(self, trial=False):
         total_external = 0.
@@ -237,6 +269,10 @@ class ParticleGroup:
     def get_potential(self, trial=False):
         # units of kcal/mol
         # More chances of pairwise being None than external
+        # I am currently calculating the potential again for every step 
+        # this is very inefficient, I should only calculate it once and then 
+        # add a correction each step according to how the 
+        # particles have moved
         return self.get_external_potential(trial=trial) + self.get_pairwise_potential(trial=trial)
 
     def get_potential_difference(self):
@@ -273,6 +309,7 @@ class Particle:
 
     def get_force(self):
         return self.pairwise_force + self.external_force
+
 
 class Propagator:
     def __init__(self, particle_group, seed=None, termo_properties=['trajectory']):
@@ -334,13 +371,12 @@ class Propagator:
 
     def propagate_mcmc_nvt(self, steps, temperature=298, max_delta=0.5):
         self.acceptance_rate = 0.
-        start = time.time()
         for _ in range(steps):
             if 'forces' in self.termo_properties or 'pressure' in self.termo_properties:
                 self.particle_group.calculate_forces()
             self.store_termo(temperature=temperature)
             beta =  1/(constants.kb*temperature)
-            in_bounds = self.mcmc_translation_one(max_delta=max_delta)
+            in_bounds, moved_particle_idx = self.mcmc_translation_one(max_delta=max_delta)
             if not in_bounds:
                 # If the particle is not in bounds the 
                 # move is rejected automatically and there is nothing
@@ -361,7 +397,6 @@ class Propagator:
                 self.accept_mcmc_move()
             else:
                 self.reject_mcmc_move()
-        end = time.time()
         self.last_run_time = end - start
         self.acceptance_rate /= steps
 
@@ -379,12 +414,13 @@ class Propagator:
         """
         # generating the random numbers through numpy is pretty costly, it should be
         # optimized
-        particle = self.particle_group[self.prng.randint(0, len(self.particle_group))]
+        particle_idx = self.prng.randint(0, len(self.particle_group))
+        particle = self.particle_group[particle_idx]
         particle.trial_coordinates = particle.coordinates + self.prng.uniform(low=-max_delta, high=max_delta, size=particle.coordinates.size)
         if self.particle_group.bounds.kind == 'p':
             self.particle_group.bounds.wrap_coordinates(particle.trial_coordinates)
         # Reflecting boundary conditions only means to reject moves that are out of bounds
-        return self.particle_group.bounds.are_in_bounds(particle.trial_coordinates)
+        return self.particle_group.bounds.are_in_bounds(particle.trial_coordinates), particle_idx
 
     def accept_mcmc_move(self):
         self.acceptance_rate +=1
