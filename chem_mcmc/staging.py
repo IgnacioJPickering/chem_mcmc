@@ -428,7 +428,7 @@ class Propagator:
                 # but it sometimes happens if the conditions are reflecting
                 self.reject_mcmc_move()
                 continue
-            potential_trial = self.get_pairwise_potential_contribution(moved_particle_idx, trial=True)
+            potential_trial = self.particle_group.get_pairwise_potential_contribution(moved_particle_idx, trial=True)
             if math.isinf(potential_trial):
                 # If the trial particle is in a potential that is infinite
                 # then the function automatically returns and
@@ -437,7 +437,7 @@ class Propagator:
                 continue
             # the difference in this case is between the single particle 
             # contributions to the potential energy
-            diff = potential_trial - self[moved_particle_idx].pairwise_potential_contribution
+            diff = potential_trial - self.particle_group[moved_particle_idx].pairwise_potential_contribution
             mc_factor = np.exp(-beta*diff)
             if self.prng.uniform(low=0., high=1.) < mc_factor:
                 # if the move is accepted the particle's potential energy 
