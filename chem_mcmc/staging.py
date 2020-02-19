@@ -187,6 +187,11 @@ class ParticleGroup:
                     total_potential += pp(r)
         return total_potential
 
+    def calculate_all_pairwise_potential_contributions(self):
+        # This stores all pairwise potential contributions in all particles
+        for j, p in enumerate(self):
+            p.pairwise_potential_contribution = self.get_pairwise_potential_contribution(j, trial=False)
+
     def get_pairwise_potential_contribution(self, particle_idx, trial=False):
         # This function calculates the contribution of ONE
         # particle to the total potential energy.
@@ -197,26 +202,26 @@ class ParticleGroup:
         num_particles = len(self)
         for j in range(num_particles):
             if j == particle_idx: continue
-        if trial:
-            r = self.bounds.get_distance(self[j].trial_coordinates, self[k].trial_coordinates)
-        else:
-            r = self.bounds.get_distance(self[j].coordinates, self[k].coordinates)
-        for pp in self.pairwise_potential:
-            pot_value = pp(r) 
-            # if one of the potentials is infinite 
-            # stop doing calculations and return infinity
-            # directly, this should save some time
-            # math.isinf is faster than numpy for small arrays
-            if math.isinf(pot_value):
-                return np.inf
-            pairwise_contribution += pp(r)
-            # Factor of 0.5 corrects for double counting when 
-            # summing the pairwise contributions of all particles, 
-            # If you want to sum all contributions to get the total energy 
-            # it MUST be present, but if you want to split the energy into 
-            # U = U_others + U_particle
-            # thin it SHOULDN't be present. This is slightly confusing but it 
-            # works out. 
+            if trial:
+                r = self.bounds.get_distance(self[particle_idx].trial_coordinates, self[j].trial_coordinates)
+            else:
+                r = self.bounds.get_distance(self[particle_idx].coordinates, self[j].coordinates)
+            for pp in self.pairwise_potential:
+                pot_value = pp(r) 
+                # if one of the potentials is infinite 
+                # stop doing calculations and return infinity
+                # directly, this should save some time
+                # math.isinf is faster than numpy for small arrays
+                if math.isinf(pot_value):
+                    return np.inf
+                pairwise_contribution += pp(r)
+                # Factor of 0.5 corrects for double counting when 
+                # summing the pairwise contributions of all particles, 
+                # If you want to sum all contributions to get the total energy 
+                # it MUST be present, but if you want to split the energy into 
+                # U = U_others + U_particle
+                # thin it SHOULDN't be present. This is slightly confusing but it 
+                # works out. 
         return pairwise_contribution
     
     def get_external_potential(self, trial=False):
@@ -284,6 +289,14 @@ class ParticleGroup:
             return np.inf
         return potential_trial - self.get_potential(trial=False)
 
+    def get_potential_contribution_difference(self, particle_idx):
+        # This function assumes that the pairwise potential contribution has already been calculated!!!
+        # if it hasn't then it will crash
+        potential_trial = self.get_pairwise_potential_contribution(particle_idx, trial=True)
+        if math.isinf(potential_trial):
+            return np.inf
+        return potential_trial - self[particle_idx].pairwise_potential_contribution
+
     def get_kinetic(self, temperature):
         # units of kcal/mol
         return (self[0].dimension/2)*len(self)*temperature*constants.kb
@@ -297,6 +310,7 @@ class Particle:
         self.dimension = len(coordinates)
         self.coordinates = np.asarray(coordinates)
         self.pairwise_force = np.zeros_like(self.coordinates)
+        self.pairwise_potential_contribution = None
 
         if velocities is not None:
             if len(velocities) != len(coordinates):
@@ -371,6 +385,7 @@ class Propagator:
 
     def propagate_mcmc_nvt(self, steps, temperature=298, max_delta=0.5):
         self.acceptance_rate = 0.
+        start = time.time()
         for _ in range(steps):
             if 'forces' in self.termo_properties or 'pressure' in self.termo_properties:
                 self.particle_group.calculate_forces()
@@ -397,8 +412,53 @@ class Propagator:
                 self.accept_mcmc_move()
             else:
                 self.reject_mcmc_move()
+        end = time.time()
         self.last_run_time = end - start
         self.acceptance_rate /= steps
+
+    def propagate_mcmc_nvt_onep(self, steps, temperature=298, max_delta=0.5):
+        # This is a specially optimized version of the propagation where one particle
+        # only is moved each time. In this case the potential
+        self.acceptance_rate = 0.
+        self.particle_group.calculate_all_pairwise_potential_contributions()
+        start = time.time()
+        for _ in range(steps):
+            if 'forces' in self.termo_properties or 'pressure' in self.termo_properties:
+                self.particle_group.calculate_forces()
+            self.store_termo(temperature=temperature)
+            beta =  1/(constants.kb*temperature)
+            in_bounds, moved_particle_idx = self.mcmc_translation_one(max_delta=max_delta)
+            if not in_bounds:
+                # If the particle is not in bounds the 
+                # move is rejected automatically and there is nothing
+                # else to check, this avoids some computation
+                # This shouldn't happen with periodic boundary conditions
+                # but it sometimes happens if the conditions are reflecting
+                self.reject_mcmc_move()
+                continue
+            potential_trial = self.get_pairwise_potential_contribution(moved_particle_idx, trial=True)
+            if math.isinf(potential_trial):
+                # If the trial particle is in a potential that is infinite
+                # then the function automatically returns and
+                # the move can be rejected without doing more computation
+                self.reject_mcmc_move()
+                continue
+            # the difference in this case is between the single particle 
+            # contributions to the potential energy
+            diff = potential_trial - self[moved_particle_idx].pairwise_potential_contribution
+            mc_factor = np.exp(-beta*diff)
+            if self.prng.uniform(low=0., high=1.) < mc_factor:
+                # if the move is accepted the particle's potential energy 
+                # is updated to the new one
+                self.particle_group[moved_particle_idx].pairwise_potential_contribution = potential_trial
+                self.accept_mcmc_move()
+            else:
+                self.reject_mcmc_move()
+        end = time.time()
+        self.last_run_time = end - start
+        self.acceptance_rate /= steps
+
+
 
     def mcmc_translation_one(self, max_delta=0.5):
         r"""Performs an MCMC translation move on all the coordinates of one particle
