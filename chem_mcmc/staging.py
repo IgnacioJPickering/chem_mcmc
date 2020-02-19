@@ -289,14 +289,6 @@ class ParticleGroup:
             return np.inf
         return potential_trial - self.get_potential(trial=False)
 
-    def get_potential_contribution_difference(self, particle_idx):
-        # This function assumes that the pairwise potential contribution has already been calculated!!!
-        # if it hasn't then it will crash
-        potential_trial = self.get_pairwise_potential_contribution(particle_idx, trial=True)
-        if math.isinf(potential_trial):
-            return np.inf
-        return potential_trial - self[particle_idx].pairwise_potential_contribution
-
     def get_kinetic(self, temperature):
         # units of kcal/mol
         return (self[0].dimension/2)*len(self)*temperature*constants.kb
