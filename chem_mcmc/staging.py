@@ -380,8 +380,9 @@ class Propagator:
 
     def mcmc_volume_scaling(self, max_delta):
         volume = self.particle_group.get_volume()
+        dimension = self.particle_group.bounds.dimension
         trial_volume = volume + self.prng.uniform(low=-1., high=1.)*max_delta
-        scaling_factor = (trial_volume/volume)**(1/3)
+        scaling_factor = (trial_volume/volume)**(1/dimension)
         # modify volume
         self.particle_group.bounds.upper = np.asarray(self.particle_group.bounds.upper)*scaling_factor
         # modify coordinates
