@@ -24,10 +24,10 @@ propagator = Propagator(p_group, termo_properties=['potential_energy', 'trajecto
 propagator.minimize(50)
 propagator.propagate_mcmc_npt(steps=mcmc_steps, temperature=temperature, pressure=pressure, max_delta_coord=1.0)
 propagator.burn_in(50)
-propagator.dump_to_xyz('npt_low.xyz')
-bound_sizes = propagator.get_bound_sizes()
-np.set_printoptions(threshold=3000)
-print(bound_sizes)
+propagator.dump_to_xyz('npt_low_fixed.xyz')
+#bound_sizes = propagator.get_bound_sizes()
+#np.set_printoptions(threshold=3000)
+#print(bound_sizes)
 #####
 
 
