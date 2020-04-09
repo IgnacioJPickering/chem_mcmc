@@ -1,5 +1,6 @@
 r"""Different potential energy functions"""
 import numpy as np
+import math
 try:
     from chem_mcmc.cpp import potentials_cpp
     CPP_AVAIL = True
@@ -32,16 +33,27 @@ class Potential:
 
 class LennardJones(Potential):
     def __init__(self,
-                 parameter1,
-                 parameter2,
+                 parameter1=None,
+                 parameter2=None,
                  parametrization='epsilon_sigma',
+                 epsilon=None, 
+                 sigma=None,
                  center=0.0,
-                 delta=1e-10):
+                 delta=1e-10,
+                 cutoff=None):
         super().__init__()
         self.parametrization = parametrization
         if parametrization == 'epsilon_sigma':
-            self.epsilon = parameter1
-            self.sigma = parameter2
+            if parameter1 is None and parameter2 is None:
+                assert epsilon is not None
+                assert sigma is not None
+                self.epsilon = epsilon
+                self.sigma = sigma
+            else:
+                assert parameter1 is not None
+                assert parameter2 is not None
+                self.epsilon = parameter1
+                self.sigma = parameter2
         elif parametrization == 'epsilon_rmin':
             self.epsilon = parameter1
             self.sigma = parameter2 / (2**(1 / 6))
@@ -52,14 +64,24 @@ class LennardJones(Potential):
             raise ValueError('Incorrect parametrization')
         self.center = center
         self.delta = delta
+        if cutoff is not None:
+            self.cutoff = cutoff
+        else:
+            self.cutoff = math.inf
+
+
 
     def __call__(self, r):
+        if r > self.cutoff:
+            return 0.
         term1 = (self.sigma / (r - self.center + self.delta))**6
         term2 = term1**2
         out = term2 - term1
         return 4 * self.epsilon * out
 
     def dv(self, r):
+        if r > self.cutoff:
+            return 0.
         term1 = 6 * self.sigma**6 / (r - self.center + self.delta)**7
         term2 = 12 * self.sigma**12 / (r - self.center + self.delta)**13
         return 4 * self.epsilon * (-term2 + term1)
@@ -221,6 +243,50 @@ class LogGaussianOpt(Potential):
 
     def __call__(self, r):
         return potentials_cpp.log_gaussian(r, self.sigmas, self.As, self.mus)
+
+
+class LennardJonesOpt(Potential):
+    def __init__(self,
+                 parameter1=None,
+                 parameter2=None,
+                 parametrization='epsilon_sigma',
+                 epsilon=None, 
+                 sigma=None,
+                 center=0.0,
+                 delta=1e-10, cutoff=None):
+        super().__init__()
+        self.parametrization = parametrization
+        if parametrization == 'epsilon_sigma':
+            if parameter1 is None and parameter2 is None:
+                assert epsilon is not None
+                assert sigma is not None
+                self.epsilon = epsilon
+                self.sigma = sigma
+            else:
+                assert parameter1 is not None
+                assert parameter2 is not None
+                self.epsilon = parameter1
+                self.sigma = parameter2
+        elif parametrization == 'epsilon_rmin':
+            self.epsilon = parameter1
+            self.sigma = parameter2 / (2**(1 / 6))
+        elif parametrization == 'a_b':
+            self.epsilon = parameter2**2 / (4 * parameter1)
+            self.sigma = (parameter1 / parameter2)**(1 / 6)
+        else:
+            raise ValueError('Incorrect parametrization')
+        if cutoff is not None:
+            self.cutoff = cutoff
+        else:
+            self.cutoff = math.inf
+        self.center = center
+        self.delta = delta
+
+    def __call__(self, r):
+        return potentials_cpp.lennard_jones(r, self.epsilon, self.sigma, self.center, self.delta, self.cutoff)
+
+    def dv(self, r):
+        return potentials_cpp.lennard_jones_dv(r, self.epsilon, self.sigma, self.center, self.delta, self.cutoff)
 
 
 class Cuadratic(Potential):

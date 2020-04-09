@@ -28,10 +28,33 @@ double log_gaussian(const double &r, const std::vector<double> &sigmas,
   return -std::log(sum_gaussians);
 }
 
+double lennard_jones(const double r, const double epsilon, const double sigma, const double center, const double delta, const double cutoff){
+  //By default center = 0.0 and delta = 1e-10
+  if (r > cutoff) {
+      return 0.;
+  }
+  double term1 = sigma / std::pow(r - center + delta, 6.);
+  double term2 = term1 * term1;
+  return 4 * epsilon * (term2 - term1);
+}
+
+double lennard_jones_dv(const double r, const double epsilon, const double sigma, const double center, const double delta, const double cutoff){
+  //By default center = 0.0 and delta = 1e-10
+  if (r > cutoff) {
+      return 0.;
+  }
+  double term1 = 6 * std::pow(sigma, 6.) / std::pow(r - center + delta, 7.);
+  double term2 = 12 * std::pow(sigma, 12.) / std::pow(r - center + delta, 13.);
+  return 4 * epsilon * (- term2 + term1);
+}
+
+
 // This is binding code for pybind11, usually binding code and
 // implementation are in different files
 PYBIND11_MODULE(potentials_cpp, m) {
   m.doc() = "Potentials optimized in C++";  // optional module docstring
   m.def("gaussian", &gaussian, "Gaussian function");
   m.def("log_gaussian", &log_gaussian, "Log of the sum of Gaussian functions");
+  m.def("lennard_jones", &lennard_jones, "Lennard jones function, using the epsilon-sigma parametrization");
+  m.def("lennard_jones_dv", &lennard_jones, "Lennard jones derivative function function, using the epsilon-sigma parametrization");
 }

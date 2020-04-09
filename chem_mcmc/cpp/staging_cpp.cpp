@@ -50,16 +50,18 @@ class Bounds {
     return true;
   }
 
-  std::vector<double> wrapCoordinates(std::vector<double> coordinates) {
+  std::vector<double> wrapCoordinates(const std::vector<double> &coordinates) {
+    //This will probably fail if the lower bounds are not zero
+    std::vector<double> new_coordinates = coordinates;
     for (int j = 0; j != int(coordinates.size()); j += 1) {
       if (coordinates[j] < lower_[j]) {
-        coordinates[j] += sizes_[j];
+        new_coordinates[j] += abs(floor(coordinates[j]/sizes_[j])) * sizes_[j];
       }
       if (coordinates[j] > upper_[j]) {
-        coordinates[j] -= sizes_[j];
+        new_coordinates[j] -= floor(coordinates[j]/sizes_[j]) * sizes_[j];
       }
     }
-    return coordinates;
+    return new_coordinates;
   }
 
   double getDistance(std::vector<double> &coordinates1,

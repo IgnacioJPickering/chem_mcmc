@@ -82,8 +82,13 @@ class Bounds:
         """
         too_low_idx = (coordinates < self.lower).nonzero()
         too_high_idx = (coordinates > self.upper).nonzero()
-        coordinates[too_low_idx] += self.sizes[too_low_idx]
-        coordinates[too_high_idx] -= self.sizes[too_high_idx]
+
+        coordinates[too_low_idx] += np.abs(np.floor(coordinates[too_low_idx]/self.sizes[too_low_idx])) * self.sizes[too_low_idx]
+        coordinates[too_high_idx] -= np.floor(coordinates[too_high_idx]/self.sizes[too_high_idx]) * self.sizes[too_high_idx]
+
+        return coordinates
+        #coordinates[too_low_idx] += self.sizes[too_low_idx]
+        #coordinates[too_high_idx] -= self.sizes[too_high_idx]
 
     def get_distance(self, coordinates1, coordinates2):
         difference = coordinates1 - coordinates2
@@ -243,7 +248,7 @@ class ParticleGroup:
                 total_external += ep(r)
         return total_external
 
-    def calculate_pairwise_forces(self):
+    def calculate_pairwise_forces(self, delta=1e-10):
         num_particles = len(self)
         for j in range(num_particles):
             total_pairwise_force = np.zeros_like(self[0].coordinates)
@@ -255,16 +260,16 @@ class ParticleGroup:
                 difference = self[j].coordinates - self[k].coordinates
                 r = self.bounds.get_distance(self[j].coordinates, self[k].coordinates)
                 force_magnitude = sum([pp.dv(r) for pp in self.pairwise_potential])
-                force = - force_magnitude * difference/r
+                force = - force_magnitude * difference/(r + delta)
                 total_pairwise_force += force
             self[j].pairwise_force = np.copy(total_pairwise_force)
 
-    def calculate_external_forces(self):
+    def calculate_external_forces(self, delta=1e-10):
         num_particles = len(self)
         for p in self:
             r = np.linalg.norm(p.coordinates)
             force_magnitude = sum([ep.dv(r) for ep in self.external_potential])
-            force = -force_magnitude * p.coordinates/r
+            force = -force_magnitude * p.coordinates/ (r + delta)
             p.external_force = np.copy(force)
 
     def calculate_forces(self):
@@ -370,13 +375,14 @@ class Propagator:
             self.particle_group.bounds.kind = save_kind
             self.store_termo()
             for p in self.particle_group:
-                step = alpha*p.get_force()
+                step = alpha * p.get_force()
                 # If the step is too large then reduce it to the max step
                 step_size = np.linalg.norm(step)
                 if step_size > max_step:
                     step = step*max_step/step_size
                 p.coordinates =  p.coordinates + alpha*p.get_force()
-                self.particle_group.bounds.wrap_coordinates(p.coordinates)
+                # this is necessary right now because of Cpp
+                p.coordinates = np.asarray(self.particle_group.bounds.wrap_coordinates(p.coordinates))
 
     def mcmc_volume_scaling(self, max_delta):
         volume = self.particle_group.get_volume()
@@ -473,7 +479,7 @@ class Propagator:
         self.last_run_time = end - start
         self.acceptance_rate /= steps
 
-    def propagate_mcmc_nvt(self, steps, temperature=298, max_delta=0.5):
+    def propagate_mcmc_nvt(self, steps, temperature=298, max_delta=0.5, particles_to_move=1):
         self.acceptance_rate = 0.
         start = time.time()
         for _ in range(steps):
@@ -481,8 +487,13 @@ class Propagator:
                 self.particle_group.calculate_forces()
             self.store_termo(temperature=temperature)
             beta =  1/(constants.kb*temperature)
-            in_bounds, moved_particle_idx = self.mcmc_translation_one(max_delta=max_delta)
-            if not in_bounds:
+            particle_indices = self.prng.randint(0, len(self.particle_group), size=particles_to_move)
+            all_in_bounds = []
+            for idx in particle_indices:
+                in_bounds, _ = self.mcmc_translation_one(max_delta=max_delta, particle_idx=idx)
+                all_in_bounds.append(in_bounds)
+
+            if not np.all(all_in_bounds):
                 # If the particle is not in bounds the 
                 # move is rejected automatically and there is nothing
                 # else to check, this avoids some computation
@@ -490,6 +501,7 @@ class Propagator:
                 # but it sometimes happens if the conditions are reflecting
                 self.reject_mcmc_move()
                 continue
+
             diff = self.particle_group.get_potential_difference()
             if math.isinf(diff):
                 # If the trial particle is in a potential that is infinite
@@ -497,6 +509,7 @@ class Propagator:
                 # the move can be rejected without doing more computation
                 self.reject_mcmc_move()
                 continue
+
             mc_factor = np.exp(-beta*diff)
             if self.prng.uniform(low=0., high=1.) < mc_factor:
                 self.accept_mcmc_move()
@@ -548,7 +561,8 @@ class Propagator:
         self.last_run_time = end - start
         self.acceptance_rate /= steps
 
-    def mcmc_translation_one(self, max_delta=0.5):
+
+    def mcmc_translation_one(self, max_delta=0.5, particle_idx=None):
         r"""Performs an MCMC translation move on all the coordinates of one particle
         
         According to ``number``, takes a certain number of coordinates and 
@@ -562,11 +576,13 @@ class Propagator:
         """
         # generating the random numbers through numpy is pretty costly, it should be
         # optimized
-        particle_idx = self.prng.randint(0, len(self.particle_group))
+        if particle_idx is None:
+            particle_idx = self.prng.randint(0, len(self.particle_group))
         particle = self.particle_group[particle_idx]
         particle.trial_coordinates = particle.coordinates + self.prng.uniform(low=-max_delta, high=max_delta, size=particle.coordinates.size)
         if self.particle_group.bounds.kind == 'p':
-            self.particle_group.bounds.wrap_coordinates(particle.trial_coordinates)
+            new_coordinates = np.asarray(self.particle_group.bounds.wrap_coordinates(particle.trial_coordinates))
+            particle.trial_coordiantes = new_coordinates
         # Reflecting boundary conditions only means to reject moves that are out of bounds
         return self.particle_group.bounds.are_in_bounds(particle.trial_coordinates), particle_idx
 
