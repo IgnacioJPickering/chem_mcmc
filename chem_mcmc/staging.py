@@ -419,14 +419,11 @@ class Propagator:
         start = time.time()
         if max_delta_volume is None:
             max_delta_volume = self.particle_group.get_volume()/40.
+        beta =  1/(constants.kb*temperature)
         for _ in range(steps):
             # by default this is one, but it changes if a pressure move is
             # performed
             scaling_factor = 1
-            if 'forces' in self.termo_properties or 'pressure' in self.termo_properties:
-                self.particle_group.calculate_forces()
-            self.store_termo(temperature=temperature)
-            beta =  1/(constants.kb*temperature)
             choice = self.prng.choice(['vol', 'trans'])
             if choice == 'trans':
                 # the index is not needed in this case because everything is
@@ -475,18 +472,18 @@ class Propagator:
             else:
                 self.particle_group.bounds.upper = np.asarray(self.particle_group.bounds.upper)*(1/scaling_factor)
                 self.reject_mcmc_move()
+            if 'forces' in self.termo_properties or 'pressure' in self.termo_properties:
+                self.particle_group.calculate_forces()
+            self.store_termo(temperature=temperature)
         end = time.time()
         self.last_run_time = end - start
         self.acceptance_rate /= steps
 
     def propagate_mcmc_nvt(self, steps, temperature=298, max_delta=0.5, particles_to_move=1):
         self.acceptance_rate = 0.
+        beta =  1/(constants.kb*temperature)
         start = time.time()
         for _ in range(steps):
-            if 'forces' in self.termo_properties or 'pressure' in self.termo_properties:
-                self.particle_group.calculate_forces()
-            self.store_termo(temperature=temperature)
-            beta =  1/(constants.kb*temperature)
             particle_indices = self.prng.randint(0, len(self.particle_group), size=particles_to_move)
             all_in_bounds = []
             for idx in particle_indices:
@@ -515,6 +512,10 @@ class Propagator:
                 self.accept_mcmc_move()
             else:
                 self.reject_mcmc_move()
+            # termo should be stored at the end, not at the start
+            if 'forces' in self.termo_properties or 'pressure' in self.termo_properties:
+                self.particle_group.calculate_forces()
+            self.store_termo(temperature=temperature)
         end = time.time()
         self.last_run_time = end - start
         self.acceptance_rate /= steps
@@ -524,12 +525,9 @@ class Propagator:
         # only is moved each time. In this case the potential
         self.acceptance_rate = 0.
         self.particle_group.calculate_all_pairwise_potential_contributions()
+        beta =  1/(constants.kb*temperature)
         start = time.time()
         for _ in range(steps):
-            if 'forces' in self.termo_properties or 'pressure' in self.termo_properties:
-                self.particle_group.calculate_forces()
-            self.store_termo(temperature=temperature)
-            beta =  1/(constants.kb*temperature)
             in_bounds, moved_particle_idx = self.mcmc_translation_one(max_delta=max_delta)
             if not in_bounds:
                 # If the particle is not in bounds the 
@@ -557,6 +555,10 @@ class Propagator:
                 self.accept_mcmc_move()
             else:
                 self.reject_mcmc_move()
+            # termo should be stored at the end, not at the start
+            if 'forces' in self.termo_properties or 'pressure' in self.termo_properties:
+                self.particle_group.calculate_forces()
+            self.store_termo(temperature=temperature)
         end = time.time()
         self.last_run_time = end - start
         self.acceptance_rate /= steps
